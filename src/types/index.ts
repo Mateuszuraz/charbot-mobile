@@ -13,7 +13,7 @@ export type Settings = {
   language: Language;
 };
 
-export type CleoStatus = 'idle' | 'listening' | 'thinking' | 'speaking';
+export type CleoStatus = 'idle' | 'listening' | 'thinking' | 'speaking' | 'loading_model';
 export type Tab = 'chat' | 'archive' | 'profile';
 
 export type Session = {

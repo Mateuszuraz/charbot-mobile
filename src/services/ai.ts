@@ -53,13 +53,21 @@ async function callGemini(question: string, history: Message[], language: Langua
     })),
     { role: 'user', parts: [{ text: question }] },
   ];
-  const res = await fetch(GEMINI_URL, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: SYSTEM_PROMPT + langHint }] },
-      contents,
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  let res: Response;
+  try {
+    res = await fetch(GEMINI_URL, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: SYSTEM_PROMPT + langHint }] },
+        contents,
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
   const json = await res.json();
   if (!res.ok) throw new Error(json?.error?.message || `HTTP ${res.status}`);
   return json?.candidates?.[0]?.content?.parts?.[0]?.text || '(brak odpowiedzi)';

@@ -1,14 +1,23 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { AIMode, Language, Settings } from '../types';
 import { clearHistory, saveSettings } from '../services/storage';
+import { modelExists, modelLoadingState } from '../services/llamaService';
+import { whisperModelExists } from '../services/whisperService';
 
 type Props = { settings: Settings; onUpdate: (s: Settings) => void; onBack: () => void };
 
 export default function SettingsScreen({ settings, onUpdate, onBack }: Props) {
   const [local, setLocal] = useState<Settings>(settings);
+  const [llmReady, setLlmReady] = useState<boolean | null>(null);
+  const [whisperReady, setWhisperReady] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    modelExists().then(setLlmReady);
+    whisperModelExists().then(setWhisperReady);
+  }, []);
 
   const set = (patch: Partial<Settings>) => {
     const next = { ...local, ...patch };
@@ -79,6 +88,36 @@ export default function SettingsScreen({ settings, onUpdate, onBack }: Props) {
         <View style={styles.divider} />
 
         <View style={styles.section}>
+          <Text style={styles.label}>LOCAL MODELS</Text>
+          <View style={styles.modelRow}>
+            <View style={styles.modelInfo}>
+              <Text style={styles.modelName}>Phi-3.5-mini Q4_K_M</Text>
+              <Text style={styles.modelDesc}>LLM · 2.2 GB · Local inference</Text>
+            </View>
+            <View style={[styles.modelStatus, llmReady ? styles.modelStatusOk : styles.modelStatusMissing]}>
+              <Text style={styles.modelStatusText}>
+                {llmReady === null ? '...' : llmReady
+                  ? (modelLoadingState === 'ready' ? 'ACTIVE' : 'READY')
+                  : 'MISSING'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.modelRow}>
+            <View style={styles.modelInfo}>
+              <Text style={styles.modelName}>Whisper Small</Text>
+              <Text style={styles.modelDesc}>STT · 230 MB · Offline transcription</Text>
+            </View>
+            <View style={[styles.modelStatus, whisperReady ? styles.modelStatusOk : styles.modelStatusMissing]}>
+              <Text style={styles.modelStatusText}>
+                {whisperReady === null ? '...' : whisperReady ? 'READY' : 'MISSING'}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.section}>
           <Text style={styles.label}>MEMORY</Text>
           <TouchableOpacity style={styles.clearBtn} onPress={handleClear}>
             <Text style={styles.clearText}>CLEAR MEMORY</Text>
@@ -121,6 +160,15 @@ const styles = StyleSheet.create({
   },
 
   divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.07)' },
+
+  modelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  modelInfo: { flex: 1 },
+  modelName: { color: 'rgba(255,255,255,0.7)', fontFamily: 'SpaceMono', fontSize: 10, letterSpacing: 1 },
+  modelDesc: { color: 'rgba(255,255,255,0.25)', fontFamily: 'SpaceMono', fontSize: 8, letterSpacing: 1, marginTop: 3 },
+  modelStatus: { paddingHorizontal: 8, paddingVertical: 4, marginLeft: 8 },
+  modelStatusOk: { borderWidth: 1, borderColor: '#FF6B00' },
+  modelStatusMissing: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
+  modelStatusText: { color: '#FF6B00', fontFamily: 'SpaceMono', fontSize: 8, letterSpacing: 2 },
 
   clearBtn: {
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',

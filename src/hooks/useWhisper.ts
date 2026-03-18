@@ -1,9 +1,24 @@
 import { useState, useRef, useCallback } from 'react';
+import { PermissionsAndroid, Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { initWhisper, WhisperContext } from 'whisper.rn';
 import { whisperModelExists } from '../services/whisperService';
 
 const WHISPER_PATH = `${FileSystem.documentDirectory}models/ggml-small.bin`;
+
+async function requestMicPermission(): Promise<boolean> {
+  if (Platform.OS !== 'android') return true;
+  const granted = await PermissionsAndroid.request(
+    PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+    {
+      title: 'Microphone Permission',
+      message: 'Charbot needs microphone access for voice input.',
+      buttonPositive: 'Allow',
+      buttonNegative: 'Deny',
+    },
+  );
+  return granted === PermissionsAndroid.RESULTS.GRANTED;
+}
 
 export function useWhisper() {
   const [isListening, setIsListening] = useState(false);
@@ -23,6 +38,11 @@ export function useWhisper() {
     onError?: (e: Error) => void,
   ) => {
     try {
+      const hasPermission = await requestMicPermission();
+      if (!hasPermission) {
+        onError?.(new Error('Microphone permission denied'));
+        return;
+      }
       await ensureLoaded();
       if (!ctxRef.current) return;
       setIsListening(true);

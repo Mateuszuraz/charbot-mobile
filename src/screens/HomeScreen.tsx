@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Message, Settings, CleoStatus } from '../types';
 import { askCleo, checkOnline } from '../services/ai';
+import { modelLoadingState } from '../services/llamaService';
 import { loadHistory, saveHistory, loadSettings, saveSettings, saveSession } from '../services/storage';
 import { useVoice } from '../hooks/useVoice';
 import { useWhisper } from '../hooks/useWhisper';
@@ -87,7 +88,12 @@ export default function HomeScreen({ onOpenSettings }: Props) {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
 
     try {
+      // Show loading_model status if llama is initializing for the first time
+      if (modelLoadingState === 'idle' || modelLoadingState === 'loading') {
+        setStatus('loading_model');
+      }
       const { reply, usedCloud } = await askCleo(text, next, settings.aiMode, settings.language);
+      setStatus('thinking');
       setOnline(usedCloud);
 
       const cleoMsg: Message = {
@@ -143,6 +149,8 @@ export default function HomeScreen({ onOpenSettings }: Props) {
         <Text style={styles.cleoName}>CLEO</Text>
         {isTranscribing ? (
           <Text style={styles.listeningText}>TRANSCRIBING...</Text>
+        ) : status === 'loading_model' ? (
+          <Text style={styles.loadingModelText}>LOADING MODEL...</Text>
         ) : status === 'thinking' ? (
           <View style={styles.processingRow}>
             <Text style={styles.processingText}>PROCESSING QUERY</Text>
@@ -238,6 +246,7 @@ const styles = StyleSheet.create({
   listeningText:   { fontFamily: 'SpaceMono', color: '#FF2020', fontSize: 10, letterSpacing: 2, marginTop: 6 },
   speakingText:    { fontFamily: 'SpaceMono', color: '#fff', fontSize: 10, letterSpacing: 2, marginTop: 6 },
   idleText:        { fontFamily: 'SpaceMono', color: 'rgba(255,255,255,0.2)', fontSize: 10, letterSpacing: 3, marginTop: 6 },
+  loadingModelText: { fontFamily: 'SpaceMono', color: '#FF6B00', fontSize: 10, letterSpacing: 2, marginTop: 6 },
 
   chat:        { flex: 1 },
   chatContent: { padding: 16, paddingBottom: 8 },

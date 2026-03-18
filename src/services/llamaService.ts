@@ -14,6 +14,8 @@ Character: direct, friendly, slightly ironic, never mean. Reply in the user's la
 
 let ctx: LlamaContext | null = null;
 let loading = false;
+export let modelLoadingState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
+export let modelLoadingError: string | null = null;
 
 export async function modelExists(): Promise<boolean> {
   const info = await FileSystem.getInfoAsync(MODEL_PATH);
@@ -40,8 +42,20 @@ export async function loadModel(): Promise<void> {
   const exists = await modelExists();
   if (!exists) throw new Error('Model not downloaded');
   loading = true;
+  modelLoadingState = 'loading';
+  modelLoadingError = null;
   try {
-    ctx = await initLlama({ model: MODEL_PATH, use_mlock: true, n_ctx: 2048, n_gpu_layers: 99 });
+    // Try GPU first, fallback to CPU-only if GPU fails
+    try {
+      ctx = await initLlama({ model: MODEL_PATH, use_mlock: false, n_ctx: 2048, n_gpu_layers: 99 });
+    } catch {
+      ctx = await initLlama({ model: MODEL_PATH, use_mlock: false, n_ctx: 2048, n_gpu_layers: 0 });
+    }
+    modelLoadingState = 'ready';
+  } catch (e) {
+    modelLoadingState = 'error';
+    modelLoadingError = (e as Error).message;
+    throw e;
   } finally {
     loading = false;
   }
