@@ -4,7 +4,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { initWhisper, WhisperContext } from 'whisper.rn';
 import { whisperModelExists } from '../services/whisperService';
 
-const WHISPER_PATH = `${FileSystem.documentDirectory}models/ggml-small.bin`;
+const WHISPER_PATH = `${FileSystem.documentDirectory}models/ggml-tiny.bin`;
 
 async function requestMicPermission(): Promise<boolean> {
   if (Platform.OS !== 'android') return true;

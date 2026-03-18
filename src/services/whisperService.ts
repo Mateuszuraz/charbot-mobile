@@ -2,11 +2,11 @@ import { initWhisper, WhisperContext } from 'whisper.rn';
 import * as FileSystem from 'expo-file-system/legacy';
 
 const MODEL_DIR = `${FileSystem.documentDirectory}models/`;
-const WHISPER_FILENAME = 'ggml-small.bin';
+const WHISPER_FILENAME = 'ggml-tiny.bin';
 const WHISPER_PATH = `${MODEL_DIR}${WHISPER_FILENAME}`;
 
 export const WHISPER_DOWNLOAD_URL =
-  'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin';
+  'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin';
 
 let whisperCtx: WhisperContext | null = null;
 

@@ -14,7 +14,7 @@ type Props = { onDone: () => void };
 type DownloadState = 'idle' | 'downloading_llm' | 'downloading_whisper' | 'done' | 'error';
 
 const LLM_SIZE = '2.2 GB';
-const WHISPER_SIZE = '230 MB';
+const WHISPER_SIZE = '75 MB';
 
 export default function ModelSetupScreen({ onDone }: Props) {
   const [state, setState] = useState<DownloadState>('idle');
@@ -69,7 +69,7 @@ export default function ModelSetupScreen({ onDone }: Props) {
             done={llmPct === 100}
           />
           <ModelRow
-            label="STT — Whisper small"
+            label="STT — Whisper tiny"
             size={WHISPER_SIZE}
             pct={whisperPct}
             active={state === 'downloading_whisper'}
@@ -103,7 +103,7 @@ export default function ModelSetupScreen({ onDone }: Props) {
         )}
 
         <Text style={styles.hint}>
-          Requires ~2.5 GB free space.{'\n'}Wi-Fi recommended.
+          Requires ~2.3 GB free space.{'\n'}Wi-Fi recommended.
         </Text>
       </View>
     </View>

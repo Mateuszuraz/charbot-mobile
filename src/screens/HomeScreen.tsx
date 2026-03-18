@@ -92,16 +92,28 @@ export default function HomeScreen({ onOpenSettings }: Props) {
       if (modelLoadingState === 'idle' || modelLoadingState === 'loading') {
         setStatus('loading_model');
       }
-      const { reply, usedCloud } = await askCleo(text, next, settings.aiMode, settings.language);
+
+      // Add placeholder message for streaming
+      const streamId = (Date.now() + 1).toString();
+      const placeholder: Message = { id: streamId, role: 'cleo', text: '', timestamp: Date.now() };
+      setMessages([...next, placeholder]);
+
+      let streamedText = '';
+      const onToken = (token: string) => {
+        streamedText += token;
+        setMessages(prev => prev.map(m =>
+          m.id === streamId ? { ...m, text: streamedText } : m
+        ));
+        listRef.current?.scrollToEnd({ animated: false });
+      };
+
+      const { reply, usedCloud } = await askCleo(text, next, settings.aiMode, settings.language, onToken);
       setStatus('thinking');
       setOnline(usedCloud);
 
-      const cleoMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'cleo',
-        text: reply,
-        timestamp: Date.now(),
-      };
+      // Finalize message (use reply from cloud or accumulated streamedText)
+      const finalText = reply || streamedText;
+      const cleoMsg: Message = { id: streamId, role: 'cleo', text: finalText, timestamp: Date.now() };
       const final = [...next, cleoMsg];
       setMessages(final);
       saveHistory(final);
@@ -111,7 +123,7 @@ export default function HomeScreen({ onOpenSettings }: Props) {
       setStatus('speaking');
       const lang = settings.language === 'PL' ? 'pl-PL'
         : settings.language === 'EN' ? 'en-US' : 'pl-PL';
-      speak(reply, lang);
+      speak(finalText, lang);
     } catch {
       const errMsg: Message = {
         id: (Date.now() + 1).toString(),
