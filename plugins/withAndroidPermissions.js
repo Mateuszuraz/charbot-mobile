@@ -1,4 +1,6 @@
-const { withAndroidManifest, withAppBuildGradle } = require('@expo/config-plugins');
+const { withAndroidManifest, withDangerousMod } = require('@expo/config-plugins');
+const path = require('path');
+const fs = require('fs');
 
 // Adds RECORD_AUDIO permission to AndroidManifest.xml
 const withRecordAudio = (config) => {
@@ -16,19 +18,24 @@ const withRecordAudio = (config) => {
   });
 };
 
-// Adds proguard rules for llama.rn and whisper.rn
+// Adds proguard rules for llama.rn and whisper.rn to proguard-rules.pro
 const withProguardRules = (config) => {
-  return withAppBuildGradle(config, (mod) => {
-    const rules = `
-# llama.rn and whisper.rn
--keep class com.rnllama.** { *; }
--keep class com.rnwhisper.** { *; }
-`;
-    if (!mod.modResults.contents.includes('com.rnllama')) {
-      mod.modResults.contents += rules;
-    }
-    return mod;
-  });
+  return withDangerousMod(config, [
+    'android',
+    (mod) => {
+      const proguardFile = path.join(
+        mod.modRequest.platformProjectRoot,
+        'app',
+        'proguard-rules.pro'
+      );
+      const rules = `\n# llama.rn and whisper.rn\n-keep class com.rnllama.** { *; }\n-keep class com.rnwhisper.** { *; }\n`;
+      const contents = fs.readFileSync(proguardFile, 'utf8');
+      if (!contents.includes('com.rnllama')) {
+        fs.writeFileSync(proguardFile, contents + rules);
+      }
+      return mod;
+    },
+  ]);
 };
 
 module.exports = (config) => {
