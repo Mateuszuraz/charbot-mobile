@@ -5,7 +5,7 @@ import { Tab } from '../types';
 const TABS: { id: Tab; icon: string }[] = [
   { id: 'chat',    icon: '💬' },
   { id: 'archive', icon: '🕐' },
-  { id: 'ascii',   icon: '█' },
+  { id: 'ascii',   icon: '🎨' },
   { id: 'profile', icon: '👤' },
 ];
 
@@ -26,7 +26,6 @@ const styles = StyleSheet.create({
   bar:       { flexDirection: 'row', borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: '#0a0a0a' },
   tab:       { flex: 1, alignItems: 'center', paddingVertical: 10, gap: 4 },
   icon:      { fontSize: 20 },
-  iconAscii: { fontSize: 16, color: '#FF6B00', fontFamily: 'SpaceMono' },
   dot:       { width: 4, height: 4, borderRadius: 2, backgroundColor: 'transparent' },
   dotActive: { backgroundColor: '#FF6B00' },
 });
