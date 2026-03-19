@@ -28,13 +28,24 @@ export default function SettingsScreen({ settings, onUpdate, onBack, onOpenModel
   const [local, setLocal] = useState<Settings>(settings);
   const [llmReady, setLlmReady] = useState<boolean | null>(null);
   const [whisperReady, setWhisperReady] = useState<boolean | null>(null);
-  const [geminiKey, setGeminiKey] = useState('');
-  const [showGemini, setShowGemini] = useState(false);
+  const [geminiKey, setGeminiKey]     = useState('');
+  const [kimiKey, setKimiKey]         = useState('');
+  const [ollamaUrl, setOllamaUrl]     = useState('');
+  const [ollamaModel, setOllamaModel] = useState('');
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   useEffect(() => {
     modelExists().then(setLlmReady);
     whisperModelExists().then(setWhisperReady);
-    getApiKey('GEMINI').then(k => setGeminiKey(k || ''));
+    Promise.all([
+      getApiKey('GEMINI'), getApiKey('KIMI'),
+      getApiKey('OLLAMA_URL'), getApiKey('OLLAMA_MODEL'),
+    ]).then(([g, k, ou, om]) => {
+      setGeminiKey(g || '');
+      setKimiKey(k || '');
+      setOllamaUrl(ou || '');
+      setOllamaModel(om || '');
+    });
   }, []);
 
   const set = (patch: Partial<Settings>) => {
@@ -44,9 +55,9 @@ export default function SettingsScreen({ settings, onUpdate, onBack, onOpenModel
     saveSettings(next);
   };
 
-  const saveGemini = async () => {
-    await setApiKey('GEMINI', geminiKey);
-    Alert.alert('Saved', 'Gemini API key saved.');
+  const saveKey = async (name: Parameters<typeof setApiKey>[0], value: string) => {
+    await setApiKey(name, value);
+    Alert.alert('Saved', `${name} key saved.`);
   };
 
   const handleClearHistory = () => {
@@ -148,31 +159,49 @@ export default function SettingsScreen({ settings, onUpdate, onBack, onOpenModel
         {/* API KEYS */}
         <View style={styles.section}>
           <Text style={styles.label}>API KEYS</Text>
-          <TouchableOpacity
-            style={styles.keyRow}
-            onPress={() => setShowGemini(!showGemini)}
-          >
-            <Text style={styles.keyName}>Gemini</Text>
-            <Text style={styles.keyStatus}>
-              {geminiKey ? '● CONFIGURED' : '○ NOT SET'}
-            </Text>
-          </TouchableOpacity>
-          {showGemini && (
-            <View style={styles.keyInputWrap}>
-              <TextInput
-                style={styles.keyInput}
-                value={geminiKey}
-                onChangeText={setGeminiKey}
-                placeholder="AIza..."
-                placeholderTextColor="rgba(255,255,255,0.15)"
-                autoCapitalize="none"
-                secureTextEntry
-              />
-              <TouchableOpacity style={styles.saveBtn} onPress={saveGemini}>
-                <Text style={styles.saveBtnText}>SAVE</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          <Text style={styles.hint}>Priority: Kimi → Gemini → Ollama → Local</Text>
+
+          <ApiKeyRow
+            label="Kimi K2.5" sub="api.moonshot.cn · recommended"
+            value={kimiKey} onChange={setKimiKey}
+            placeholder="sk-..."
+            configured={!!kimiKey}
+            expanded={expandedKey === 'kimi'}
+            onToggle={() => setExpandedKey(expandedKey === 'kimi' ? null : 'kimi')}
+            onSave={() => saveKey('KIMI', kimiKey)}
+          />
+          <ApiKeyRow
+            label="Gemini" sub="generativelanguage.googleapis.com"
+            value={geminiKey} onChange={setGeminiKey}
+            placeholder="AIza..."
+            configured={!!geminiKey}
+            expanded={expandedKey === 'gemini'}
+            onToggle={() => setExpandedKey(expandedKey === 'gemini' ? null : 'gemini')}
+            onSave={() => saveKey('GEMINI', geminiKey)}
+          />
+          <ApiKeyRow
+            label="Ollama URL" sub="e.g. http://192.168.1.10:11434"
+            value={ollamaUrl} onChange={setOllamaUrl}
+            placeholder="http://..."
+            configured={!!ollamaUrl}
+            expanded={expandedKey === 'ollama'}
+            onToggle={() => setExpandedKey(expandedKey === 'ollama' ? null : 'ollama')}
+            onSave={() => saveKey('OLLAMA_URL', ollamaUrl)}
+            secureTextEntry={false}
+            extra={
+              ollamaUrl ? (
+                <TextInput
+                  style={styles.keyInput}
+                  value={ollamaModel}
+                  onChangeText={setOllamaModel}
+                  placeholder="model name (e.g. llama3.2)"
+                  placeholderTextColor="rgba(255,255,255,0.15)"
+                  autoCapitalize="none"
+                  onBlur={() => saveKey('OLLAMA_MODEL', ollamaModel)}
+                />
+              ) : null
+            }
+          />
         </View>
 
         <View style={styles.divider} />
@@ -215,6 +244,44 @@ export default function SettingsScreen({ settings, onUpdate, onBack, onOpenModel
 
         <Text style={styles.about}>CLEO v2.0 — Charbot Mobile{'\n'}by Mateusz Uraz</Text>
       </ScrollView>
+    </View>
+  );
+}
+
+function ApiKeyRow({ label, sub, value, onChange, placeholder, configured, expanded, onToggle, onSave, secureTextEntry = true, extra }: {
+  label: string; sub: string; value: string; onChange: (v: string) => void;
+  placeholder: string; configured: boolean; expanded: boolean;
+  onToggle: () => void; onSave: () => void; secureTextEntry?: boolean;
+  extra?: React.ReactNode;
+}) {
+  return (
+    <View>
+      <TouchableOpacity style={styles.keyRow} onPress={onToggle}>
+        <View>
+          <Text style={styles.keyName}>{label}</Text>
+          <Text style={[styles.hint, { marginTop: 2 }]}>{sub}</Text>
+        </View>
+        <Text style={[styles.keyStatus, !configured && { color: 'rgba(255,255,255,0.25)' }]}>
+          {configured ? '● ON' : '○ OFF'}
+        </Text>
+      </TouchableOpacity>
+      {expanded && (
+        <View style={styles.keyInputWrap}>
+          <TextInput
+            style={styles.keyInput}
+            value={value}
+            onChangeText={onChange}
+            placeholder={placeholder}
+            placeholderTextColor="rgba(255,255,255,0.15)"
+            autoCapitalize="none"
+            secureTextEntry={secureTextEntry}
+          />
+          <TouchableOpacity style={styles.saveBtn} onPress={onSave}>
+            <Text style={styles.saveBtnText}>SAVE</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {expanded && extra}
     </View>
   );
 }

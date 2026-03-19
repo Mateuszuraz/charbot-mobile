@@ -24,7 +24,7 @@ export default function HomeScreen({ onOpenSettings }: Props) {
   const [status, setStatus]       = useState<CleoStatus>('idle');
   const [online, setOnline]       = useState(false);
   const [settings, setSettings]   = useState<Settings>({ aiMode: 'HYBRID', language: 'AUTO', cleoMode: 'STANDARD', customPrompt: '' });
-  const [geminiKey, setGeminiKey] = useState('');
+  const [cloudKeys, setCloudKeys] = useState<{ geminiKey: string; kimiKey: string; ollamaUrl: string; ollamaModel: string }>({ geminiKey: '', kimiKey: '', ollamaUrl: '', ollamaModel: '' });
   const [recording, setRecording] = useState(false);
   const listRef = useRef<FlatList>(null);
   const micPulse = useRef(new Animated.Value(1)).current;
@@ -55,13 +55,15 @@ export default function HomeScreen({ onOpenSettings }: Props) {
 
   useEffect(() => {
     (async () => {
-      const [hist, sett, net, gKey] = await Promise.all([
-        loadHistory(), loadSettings(), checkOnline(), getApiKey('GEMINI'),
+      const [hist, sett, net, gKey, kKey, oUrl, oModel] = await Promise.all([
+        loadHistory(), loadSettings(), checkOnline(),
+        getApiKey('GEMINI'), getApiKey('KIMI'),
+        getApiKey('OLLAMA_URL'), getApiKey('OLLAMA_MODEL'),
       ]);
       setMessages(hist);
       setSettings(sett);
       setOnline(net);
-      setGeminiKey(gKey || '');
+      setCloudKeys({ geminiKey: gKey || '', kimiKey: kKey || '', ollamaUrl: oUrl || '', ollamaModel: oModel || '' });
     })();
   }, []);
 
@@ -161,7 +163,7 @@ export default function HomeScreen({ onOpenSettings }: Props) {
 
       const { reply, usedCloud } = await askCleo(
         text, next, settings.aiMode, settings.language,
-        onToken, settings.cleoMode, settings.customPrompt, geminiKey,
+        onToken, settings.cleoMode, settings.customPrompt, cloudKeys,
       );
       setStatus('thinking');
       setOnline(usedCloud);

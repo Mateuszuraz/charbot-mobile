@@ -1,12 +1,14 @@
 import * as SecureStore from 'expo-secure-store';
 
-export type ApiKeyName = 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'OLLAMA_URL';
+export type ApiKeyName = 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'KIMI' | 'OLLAMA_URL' | 'OLLAMA_MODEL';
 
 const KEY_MAP: Record<ApiKeyName, string> = {
-  GEMINI:      'cleo_api_gemini',
-  OPENAI:      'cleo_api_openai',
-  ANTHROPIC:   'cleo_api_anthropic',
-  OLLAMA_URL:  'cleo_ollama_url',
+  GEMINI:       'cleo_api_gemini',
+  OPENAI:       'cleo_api_openai',
+  ANTHROPIC:    'cleo_api_anthropic',
+  KIMI:         'cleo_api_kimi',
+  OLLAMA_URL:   'cleo_ollama_url',
+  OLLAMA_MODEL: 'cleo_ollama_model',
 };
 
 export async function getApiKey(name: ApiKeyName): Promise<string | null> {

@@ -34,6 +34,13 @@ function buildSystemPrompt(
   return base + langHint + memory;
 }
 
+export type CloudKeys = {
+  geminiKey?: string;
+  kimiKey?: string;
+  ollamaUrl?: string;
+  ollamaModel?: string;
+};
+
 export async function askCleo(
   question: string,
   history: Message[],
@@ -42,22 +49,47 @@ export async function askCleo(
   onToken?: (token: string) => void,
   cleoMode: CleoMode = 'STANDARD',
   customPrompt = '',
-  geminiKey = '',
+  keys: CloudKeys = {},
 ): Promise<{ reply: string; usedCloud: boolean }> {
   const systemPrompt = buildSystemPrompt(cleoMode, customPrompt, language);
   const online = mode !== 'OFFLINE' && await checkOnline();
 
-  // Cloud path
-  if (online && geminiKey.trim()) {
-    try {
-      const reply = await callGemini(question, history, systemPrompt, geminiKey);
-      return { reply, usedCloud: true };
-    } catch {
-      // Cloud failed — fall through to local
+  if (online) {
+    // 1. Kimi K2.5 (Moonshot AI)
+    if (keys.kimiKey?.trim()) {
+      try {
+        const reply = await callOpenAICompat(
+          question, history, systemPrompt, keys.kimiKey,
+          'https://api.moonshot.cn/v1/chat/completions',
+          'kimi-k2-0711-preview',
+        );
+        return { reply, usedCloud: true };
+      } catch {}
+    }
+
+    // 2. Gemini
+    if (keys.geminiKey?.trim()) {
+      try {
+        const reply = await callGemini(question, history, systemPrompt, keys.geminiKey);
+        return { reply, usedCloud: true };
+      } catch {}
+    }
+
+    // 3. Ollama remote
+    if (keys.ollamaUrl?.trim()) {
+      try {
+        const model = keys.ollamaModel?.trim() || 'llama3.2';
+        const reply = await callOpenAICompat(
+          question, history, systemPrompt, '',
+          `${keys.ollamaUrl.replace(/\/$/, '')}/v1/chat/completions`,
+          model,
+        );
+        return { reply, usedCloud: true };
+      } catch {}
     }
   }
 
-  // Local LLM path
+  // Local LLM
   const hasModel = await modelExists();
   if (hasModel) {
     try {
@@ -68,8 +100,44 @@ export async function askCleo(
     }
   }
 
-  // No model downloaded
   return { reply: getBasicFallback(question, language), usedCloud: false };
+}
+
+async function callOpenAICompat(
+  question: string,
+  history: Message[],
+  systemPrompt: string,
+  apiKey: string,
+  url: string,
+  model: string,
+): Promise<string> {
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...history.slice(-16).map(m => ({
+      role: m.role === 'user' ? 'user' : 'assistant',
+      content: m.text,
+    })),
+    { role: 'user', content: question },
+  ];
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ model, messages, max_tokens: 512 }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.error?.message || `HTTP ${res.status}`);
+  return json?.choices?.[0]?.message?.content || '(brak odpowiedzi)';
 }
 
 async function callGemini(
