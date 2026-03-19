@@ -30,8 +30,24 @@
     },
     "plugins": [
       "expo-font",
-      ["llama.rn", { "forceCxx20": true, "enableOpenCLAndHexagon": true }],
-      "./plugins/withAndroidPermissions"
+      [
+        "llama.rn",
+        {
+          "forceCxx20": true,
+          "enableOpenCLAndHexagon": true
+        }
+      ],
+      "./plugins/withAndroidPermissions",
+      "expo-secure-store",
+      "expo-sqlite",
+      "expo-sharing",
+      "expo-camera",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Charbot needs access to your photos for ASCII art generation."
+        }
+      ]
     ],
     "extra": {
       "eas": {

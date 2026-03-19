@@ -8,6 +8,8 @@ import { Message, Settings, CleoStatus } from '../types';
 import { askCleo, checkOnline } from '../services/ai';
 import { modelLoadingState } from '../services/llamaService';
 import { loadHistory, saveHistory, loadSettings, saveSettings, saveSession } from '../services/storage';
+import { extractFact, saveFact } from '../services/memory';
+import { getApiKey } from '../services/apiKeys';
 import { useVoice } from '../hooks/useVoice';
 import { useWhisper } from '../hooks/useWhisper';
 import Avatar from '../components/Avatar';
@@ -20,7 +22,8 @@ export default function HomeScreen({ onOpenSettings }: Props) {
   const [input, setInput]         = useState('');
   const [status, setStatus]       = useState<CleoStatus>('idle');
   const [online, setOnline]       = useState(false);
-  const [settings, setSettings]   = useState<Settings>({ aiMode: 'HYBRID', language: 'AUTO' });
+  const [settings, setSettings]   = useState<Settings>({ aiMode: 'HYBRID', language: 'AUTO', cleoMode: 'STANDARD', customPrompt: '' });
+  const [geminiKey, setGeminiKey] = useState('');
   const [recording, setRecording] = useState(false);
   const listRef = useRef<FlatList>(null);
   const micPulse = useRef(new Animated.Value(1)).current;
@@ -30,12 +33,13 @@ export default function HomeScreen({ onOpenSettings }: Props) {
 
   useEffect(() => {
     (async () => {
-      const [hist, sett, net] = await Promise.all([
-        loadHistory(), loadSettings(), checkOnline(),
+      const [hist, sett, net, gKey] = await Promise.all([
+        loadHistory(), loadSettings(), checkOnline(), getApiKey('GEMINI'),
       ]);
       setMessages(hist);
       setSettings(sett);
       setOnline(net);
+      setGeminiKey(gKey || '');
     })();
   }, []);
 
@@ -108,7 +112,14 @@ export default function HomeScreen({ onOpenSettings }: Props) {
         listRef.current?.scrollToEnd({ animated: false });
       };
 
-      const { reply, usedCloud } = await askCleo(text, next, settings.aiMode, settings.language, onToken);
+      // Save fact if user is telling CLEO something to remember
+      const fact = extractFact(text);
+      if (fact) saveFact(fact);
+
+      const { reply, usedCloud } = await askCleo(
+        text, next, settings.aiMode, settings.language,
+        onToken, settings.cleoMode, settings.customPrompt, geminiKey,
+      );
       setStatus('thinking');
       setOnline(usedCloud);
 

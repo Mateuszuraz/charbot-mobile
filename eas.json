@@ -2,7 +2,6 @@
   "cli": {
     "version": ">= 18.0.0"
   },
-  "githubUrl": "https://github.com/Mateuszuraz/charbot-mobile",
   "build": {
     "development": {
       "developmentClient": true,

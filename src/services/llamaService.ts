@@ -66,17 +66,14 @@ export async function releaseModel(): Promise<void> {
 }
 
 export async function runInference(
-  question: string, history: Message[], language: string,
+  question: string, history: Message[], systemPrompt: string,
   onToken?: (token: string) => void,
 ): Promise<string> {
   if (!ctx) await loadModel();
   if (!ctx) throw new Error('Model not loaded');
 
-  const langHint = language === 'PL' ? ' Odpowiadaj po polsku.'
-    : language === 'EN' ? ' Reply in English.' : '';
-
   const messages = [
-    { role: 'system' as const, content: SYSTEM_PROMPT + langHint },
+    { role: 'system' as const, content: systemPrompt },
     ...history.slice(-10).map(m => ({
       role: m.role === 'user' ? 'user' as const : 'assistant' as const,
       content: m.text,

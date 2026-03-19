@@ -15,9 +15,14 @@ export async function saveHistory(msgs: Message[]): Promise<void> {
 export async function clearHistory(): Promise<void> {
   await AsyncStorage.removeItem(HISTORY_KEY);
 }
+const DEFAULT_SETTINGS: Settings = { aiMode: 'HYBRID', language: 'AUTO', cleoMode: 'STANDARD', customPrompt: '' };
+
 export async function loadSettings(): Promise<Settings> {
-  try { const r = await AsyncStorage.getItem(SETTINGS_KEY); return r ? JSON.parse(r) : { aiMode: 'HYBRID', language: 'AUTO' }; }
-  catch { return { aiMode: 'HYBRID', language: 'AUTO' }; }
+  try {
+    const r = await AsyncStorage.getItem(SETTINGS_KEY);
+    return r ? { ...DEFAULT_SETTINGS, ...JSON.parse(r) } : DEFAULT_SETTINGS;
+  }
+  catch { return DEFAULT_SETTINGS; }
 }
 export async function saveSettings(s: Settings): Promise<void> {
   await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
