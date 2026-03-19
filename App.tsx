@@ -10,16 +10,19 @@ import AsciiScreen from './src/screens/AsciiScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ModelSetupScreen from './src/screens/ModelSetupScreen';
 import ModelManagerScreen from './src/screens/ModelManagerScreen';
+import OnboardingScreen, { ONBOARDING_KEY } from './src/screens/OnboardingScreen';
 import TabBar from './src/components/TabBar';
 import { loadSettings } from './src/services/storage';
 import { modelExists } from './src/services/llamaService';
 import { Settings, Tab } from './src/types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Overlay = 'settings' | 'model-manager' | null;
 
 export default function App() {
-  const [ready, setReady]           = useState(false);
-  const [needsSetup, setNeedsSetup] = useState(false);
+  const [ready, setReady]               = useState(false);
+  const [needsSetup, setNeedsSetup]     = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [tab, setTab]               = useState<Tab>('chat');
   const [overlay, setOverlay]       = useState<Overlay>(null);
   const [settings, setSettings]     = useState<Settings>({
@@ -37,9 +40,12 @@ export default function App() {
       <>
         <StatusBar style="light" />
         <SplashScreen onDone={async () => {
-          const [s, hasModel] = await Promise.all([loadSettings(), modelExists()]);
+          const [s, hasModel, onboarded] = await Promise.all([
+            loadSettings(), modelExists(), AsyncStorage.getItem(ONBOARDING_KEY),
+          ]);
           setSettings({ aiMode: 'HYBRID', language: 'AUTO', cleoMode: 'STANDARD', customPrompt: '', ...s });
           setNeedsSetup(!hasModel);
+          setNeedsOnboarding(!onboarded);
           setReady(true);
         }} />
       </>
@@ -51,6 +57,18 @@ export default function App() {
       <>
         <StatusBar style="light" />
         <ModelSetupScreen onDone={() => setNeedsSetup(false)} />
+      </>
+    );
+  }
+
+  if (needsOnboarding) {
+    return (
+      <>
+        <StatusBar style="light" />
+        <OnboardingScreen
+          settings={settings}
+          onDone={updated => { setSettings(updated); setNeedsOnboarding(false); }}
+        />
       </>
     );
   }

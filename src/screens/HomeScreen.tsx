@@ -12,6 +12,7 @@ import { extractFact, saveFact } from '../services/memory';
 import { getApiKey } from '../services/apiKeys';
 import { useVoice } from '../hooks/useVoice';
 import { useWhisper } from '../hooks/useWhisper';
+import { useProactive } from '../hooks/useProactive';
 import Avatar from '../components/Avatar';
 import ChatBubble from '../components/ChatBubble';
 
@@ -28,8 +29,29 @@ export default function HomeScreen({ onOpenSettings }: Props) {
   const listRef = useRef<FlatList>(null);
   const micPulse = useRef(new Animated.Value(1)).current;
   const cursorOpacity = useRef(new Animated.Value(1)).current;
+  const ripple1 = useRef(new Animated.Value(0)).current;
+  const ripple2 = useRef(new Animated.Value(0)).current;
+  const ripple3 = useRef(new Animated.Value(0)).current;
   const { isSpeaking, speak } = useVoice();
   const { isListening, isTranscribing, startListening, stopListening } = useWhisper();
+
+  const addProactiveMessage = useCallback((text: string) => {
+    const msg: Message = {
+      id: Date.now().toString(),
+      role: 'cleo',
+      text,
+      timestamp: Date.now(),
+    };
+    setMessages(prev => {
+      const next = [...prev, msg];
+      saveHistory(next);
+      return next;
+    });
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+  }, []);
+
+  const { resetTimer } = useProactive(settings.cleoMode, addProactiveMessage, true);
 
   useEffect(() => {
     (async () => {
@@ -62,16 +84,34 @@ export default function HomeScreen({ onOpenSettings }: Props) {
     }
   }, [status]);
 
-  // Mic pulse animation
+  // Mic ripple animation
   useEffect(() => {
     if (recording) {
+      const makeRipple = (anim: Animated.Value, delay: number) =>
+        Animated.loop(
+          Animated.sequence([
+            Animated.delay(delay),
+            Animated.parallel([
+              Animated.timing(anim, { toValue: 1, duration: 900, useNativeDriver: true }),
+            ]),
+            Animated.timing(anim, { toValue: 0, duration: 0, useNativeDriver: true }),
+          ])
+        );
+      Animated.parallel([
+        makeRipple(ripple1, 0),
+        makeRipple(ripple2, 300),
+        makeRipple(ripple3, 600),
+      ]).start();
       Animated.loop(
         Animated.sequence([
-          Animated.timing(micPulse, { toValue: 1.25, duration: 350, useNativeDriver: true }),
+          Animated.timing(micPulse, { toValue: 1.15, duration: 350, useNativeDriver: true }),
           Animated.timing(micPulse, { toValue: 1.0, duration: 350, useNativeDriver: true }),
         ])
       ).start();
     } else {
+      ripple1.stopAnimation(); ripple1.setValue(0);
+      ripple2.stopAnimation(); ripple2.setValue(0);
+      ripple3.stopAnimation(); ripple3.setValue(0);
       micPulse.stopAnimation();
       Animated.timing(micPulse, { toValue: 1, duration: 100, useNativeDriver: true }).start();
     }
@@ -111,6 +151,9 @@ export default function HomeScreen({ onOpenSettings }: Props) {
         ));
         listRef.current?.scrollToEnd({ animated: false });
       };
+
+      // Reset proactive timer on each message
+      resetTimer();
 
       // Save fact if user is telling CLEO something to remember
       const fact = extractFact(text);
@@ -205,30 +248,32 @@ export default function HomeScreen({ onOpenSettings }: Props) {
 
       {/* Input bar */}
       <View style={styles.inputBar}>
-        {/* Mic on left */}
-        <Animated.View style={{ transform: [{ scale: micPulse }] }}>
-          <TouchableOpacity
-            style={[styles.micBtn, (recording || isListening) && styles.micBtnActive]}
-            onPressIn={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              setRecording(true);
-              setStatus('listening');
-              startListening(
-                (text) => {
-                  setStatus('idle');
-                  send(text);
-                },
-                () => { setStatus('idle'); },
-              );
-            }}
-            onPressOut={() => {
-              setRecording(false);
-              stopListening();
-            }}
-          >
-            <Text style={styles.micIcon}>{isTranscribing ? '⏳' : '🎙'}</Text>
-          </TouchableOpacity>
-        </Animated.View>
+        {/* Mic with ripple waves */}
+        <View style={styles.micWrap}>
+          {[ripple1, ripple2, ripple3].map((r, i) => (
+            <Animated.View key={i} style={[styles.ripple, {
+              opacity: r.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.5, 0.25, 0] }),
+              transform: [{ scale: r.interpolate({ inputRange: [0, 1], outputRange: [1, 2.2] }) }],
+            }]} />
+          ))}
+          <Animated.View style={{ transform: [{ scale: micPulse }] }}>
+            <TouchableOpacity
+              style={[styles.micBtn, (recording || isListening) && styles.micBtnActive]}
+              onPressIn={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setRecording(true);
+                setStatus('listening');
+                startListening(
+                  (text) => { setStatus('idle'); send(text); },
+                  () => { setStatus('idle'); },
+                );
+              }}
+              onPressOut={() => { setRecording(false); stopListening(); }}
+            >
+              <Text style={styles.micIcon}>{isTranscribing ? '⏳' : '🎙'}</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
 
         <TextInput
           style={styles.input}
@@ -291,6 +336,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 12, paddingVertical: 10,
     borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+  },
+  micWrap: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
+  ripple: {
+    position: 'absolute',
+    width: 42, height: 42,
+    borderRadius: 21,
+    borderWidth: 1, borderColor: '#FF2020',
   },
   micBtn: {
     width: 42, height: 42,

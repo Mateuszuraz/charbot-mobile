@@ -1,14 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View,
+  Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { WebView } from 'react-native-webview';
+import { saveAscii, loadAsciiHistory, deleteAscii, AsciiEntry } from '../services/asciiHistory';
 
-type Mode = 'camera' | 'gallery';
+type Mode = 'camera' | 'gallery' | 'history';
 
 const ASCII_HTML = `<!DOCTYPE html><html><body style="margin:0;background:#000;">
 <canvas id="c" style="display:none"></canvas>
@@ -54,6 +55,7 @@ export default function AsciiScreen() {
   const [asciiText, setAsciiText] = useState('');
   const [processing, setProcessing] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
+  const [history, setHistory] = useState<AsciiEntry[]>([]);
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const webviewRef = useRef<WebView>(null);
@@ -61,6 +63,10 @@ export default function AsciiScreen() {
 
   // Clean up on unmount
   useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
+
+  useEffect(() => {
+    if (mode === 'history') loadAsciiHistory().then(setHistory);
+  }, [mode]);
 
   const processBase64 = useCallback((b64: string) => {
     webviewRef.current?.postMessage(JSON.stringify({ b64, w: ASCII_W, h: ASCII_H }));
@@ -105,6 +111,17 @@ export default function AsciiScreen() {
     await Sharing.shareAsync(path, { mimeType: 'text/plain' });
   };
 
+  const saveToHistory = async () => {
+    if (!asciiText) return;
+    await saveAscii(asciiText);
+    Alert.alert('Saved', 'ASCII art saved to history.');
+  };
+
+  const removeFromHistory = async (id: string) => {
+    await deleteAscii(id);
+    setHistory(prev => prev.filter(e => e.id !== id));
+  };
+
   return (
     <View style={styles.container}>
       {/* Hidden WebView for pixel processing */}
@@ -123,15 +140,17 @@ export default function AsciiScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>ASCII</Text>
         <View style={styles.tabs}>
-          {(['camera', 'gallery'] as Mode[]).map(m => (
+          {([
+            { id: 'camera',  label: 'CAM' },
+            { id: 'gallery', label: 'IMG' },
+            { id: 'history', label: 'HIST' },
+          ] as { id: Mode; label: string }[]).map(m => (
             <TouchableOpacity
-              key={m}
-              style={[styles.tab, mode === m && styles.tabActive]}
-              onPress={() => { if (cameraOn) stopCamera(); setMode(m); setAsciiText(''); }}
+              key={m.id}
+              style={[styles.tab, mode === m.id && styles.tabActive]}
+              onPress={() => { if (cameraOn) stopCamera(); setMode(m.id); setAsciiText(''); }}
             >
-              <Text style={[styles.tabText, mode === m && styles.tabTextActive]}>
-                {m === 'camera' ? 'KAMERA' : 'GALERIA'}
-              </Text>
+              <Text style={[styles.tabText, mode === m.id && styles.tabTextActive]}>{m.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -144,41 +163,77 @@ export default function AsciiScreen() {
         </View>
       )}
 
-      {/* ASCII output */}
-      <ScrollView style={styles.asciiScroll} horizontal>
-        <ScrollView>
-          {asciiText ? (
-            <Text style={styles.ascii} selectable>{asciiText}</Text>
-          ) : (
-            <Text style={styles.placeholder}>
-              {mode === 'camera'
-                ? '— NACIŚNIJ START —'
-                : '— WYBIERZ ZDJĘCIE —'}
-            </Text>
+      {/* History mode */}
+      {mode === 'history' ? (
+        <FlatList
+          data={history}
+          keyExtractor={e => e.id}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 12, gap: 12 }}
+          ListEmptyComponent={<Text style={styles.placeholder}>— BRAK ZAPISÓW —</Text>}
+          renderItem={({ item }) => (
+            <View style={styles.histCard}>
+              <Text style={styles.histDate}>
+                {new Date(item.createdAt).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+              </Text>
+              <Text style={styles.ascii} numberOfLines={8}>{item.text}</Text>
+              <View style={styles.histActions}>
+                <TouchableOpacity style={styles.btnShare} onPress={async () => {
+                  const path = `${FileSystem.cacheDirectory}ascii_art.txt`;
+                  await FileSystem.writeAsStringAsync(path, item.text);
+                  await Sharing.shareAsync(path, { mimeType: 'text/plain' });
+                }}>
+                  <Text style={styles.btnText}>↑ SHARE</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.btnDanger} onPress={() => removeFromHistory(item.id)}>
+                  <Text style={styles.btnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           )}
-        </ScrollView>
-      </ScrollView>
+        />
+      ) : (
+        <>
+          {/* ASCII output */}
+          <ScrollView style={styles.asciiScroll} horizontal>
+            <ScrollView>
+              {asciiText ? (
+                <Text style={styles.ascii} selectable>{asciiText}</Text>
+              ) : (
+                <Text style={styles.placeholder}>
+                  {mode === 'camera' ? '— NACIŚNIJ START —' : '— WYBIERZ ZDJĘCIE —'}
+                </Text>
+              )}
+            </ScrollView>
+          </ScrollView>
 
-      {/* Controls */}
-      <View style={styles.controls}>
-        {mode === 'camera' ? (
-          <TouchableOpacity
-            style={[styles.btn, cameraOn && styles.btnStop]}
-            onPress={cameraOn ? stopCamera : startCamera}
-          >
-            <Text style={styles.btnText}>{cameraOn ? '■ STOP' : '▶ START'}</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={styles.btn} onPress={pickImage}>
-            <Text style={styles.btnText}>{processing ? 'PROCESSING...' : '+ WYBIERZ'}</Text>
-          </TouchableOpacity>
-        )}
-        {asciiText ? (
-          <TouchableOpacity style={styles.btnShare} onPress={shareAscii}>
-            <Text style={styles.btnText}>↑ SHARE</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
+          {/* Controls */}
+          <View style={styles.controls}>
+            {mode === 'camera' ? (
+              <TouchableOpacity
+                style={[styles.btn, cameraOn && styles.btnStop]}
+                onPress={cameraOn ? stopCamera : startCamera}
+              >
+                <Text style={styles.btnText}>{cameraOn ? '■ STOP' : '▶ START'}</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.btn} onPress={pickImage}>
+                <Text style={styles.btnText}>{processing ? 'PROCESSING...' : '+ WYBIERZ'}</Text>
+              </TouchableOpacity>
+            )}
+            {asciiText && (
+              <>
+                <TouchableOpacity style={styles.btnShare} onPress={saveToHistory}>
+                  <Text style={styles.btnText}>💾</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.btnShare} onPress={shareAscii}>
+                  <Text style={styles.btnText}>↑</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -228,8 +283,16 @@ const styles = StyleSheet.create({
   },
   btnStop:  { borderColor: '#FF2020', backgroundColor: 'rgba(255,32,32,0.08)' },
   btnShare: {
-    paddingVertical: 14, paddingHorizontal: 20, alignItems: 'center',
+    paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
   },
+  btnDanger: {
+    paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,32,32,0.4)',
+  },
   btnText: { fontFamily: 'SpaceMono', color: '#FF6B00', fontSize: 10, letterSpacing: 3 },
+
+  histCard:    { borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', padding: 10, gap: 8 },
+  histDate:    { fontFamily: 'SpaceMono', color: 'rgba(255,255,255,0.3)', fontSize: 8, letterSpacing: 2 },
+  histActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
 });
