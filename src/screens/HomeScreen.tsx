@@ -3,6 +3,7 @@ import {
   Animated, FlatList, KeyboardAvoidingView, Platform,
   StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { Message, Settings, CleoStatus } from '../types';
 import { askCleo, checkOnline } from '../services/ai';
 import { modelLoadingState } from '../services/llamaService';
@@ -121,6 +122,7 @@ export default function HomeScreen({ onOpenSettings }: Props) {
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
 
       setStatus('speaking');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const lang = settings.language === 'PL' ? 'pl-PL'
         : settings.language === 'EN' ? 'en-US' : 'pl-PL';
       speak(finalText, lang);
@@ -197,10 +199,14 @@ export default function HomeScreen({ onOpenSettings }: Props) {
           <TouchableOpacity
             style={[styles.micBtn, (recording || isListening) && styles.micBtnActive]}
             onPressIn={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               setRecording(true);
               setStatus('listening');
               startListening(
-                (text) => { setInput(text); setStatus('idle'); },
+                (text) => {
+                  setStatus('idle');
+                  send(text);
+                },
                 () => { setStatus('idle'); },
               );
             }}
@@ -221,13 +227,16 @@ export default function HomeScreen({ onOpenSettings }: Props) {
           placeholderTextColor="rgba(255,255,255,0.15)"
           onSubmitEditing={() => send(input)}
           returnKeyType="send"
-          editable={status !== 'thinking'}
+          editable={status !== 'thinking' && status !== 'speaking'}
         />
 
         <TouchableOpacity
-          style={[styles.sendBtn, (!input.trim() || status === 'thinking') && styles.sendBtnDisabled]}
-          onPress={() => send(input)}
-          disabled={!input.trim() || status === 'thinking'}
+          style={[styles.sendBtn, (!input.trim() || status === 'thinking' || status === 'speaking') && styles.sendBtnDisabled]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            send(input);
+          }}
+          disabled={!input.trim() || status === 'thinking' || status === 'speaking'}
         >
           <Text style={styles.sendIcon}>→</Text>
         </TouchableOpacity>
