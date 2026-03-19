@@ -35,11 +35,15 @@ export async function askCleo(
   // Local LLM path
   const hasModel = await modelExists();
   if (hasModel) {
-    const reply = await runInference(question, history, language, onToken);
-    return { reply, usedCloud: false };
+    try {
+      const reply = await runInference(question, history, language, onToken);
+      return { reply, usedCloud: false };
+    } catch {
+      return { reply: getModelErrorFallback(language), usedCloud: false };
+    }
   }
 
-  // Last resort — basic fallback (before model is downloaded)
+  // No model downloaded
   return { reply: getBasicFallback(question, language), usedCloud: false };
 }
 
@@ -78,4 +82,10 @@ function getBasicFallback(question: string, language: Language): string {
   return isPL
     ? 'Model AI nie jest jeszcze pobrany. Wejdź w Profil → pobierz modele.'
     : 'AI model not downloaded yet. Go to Profile → download models.';
+}
+
+function getModelErrorFallback(language: Language): string {
+  return language === 'EN'
+    ? 'Local model failed to respond. Try again or check available memory.'
+    : 'Lokalny model nie odpowiedział. Spróbuj ponownie lub sprawdź pamięć urządzenia.';
 }
